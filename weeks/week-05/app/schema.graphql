@@ -1,1 +1,18 @@
-# В этом месте вам необходимо: опишите GraphQL схему
+type Like {
+  id: ID!
+  target: String!
+}
+
+type Query {
+  likes: [Like!]!
+  like(id: ID!): Like
+}
+
+type Mutation {
+  createLike(target: String!): Like!
+}
+
+schema {
+  query: Query
+  mutation: Mutation
+}
