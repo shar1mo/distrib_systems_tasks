@@ -1,25 +1,40 @@
 import asyncio
 import websockets
 
-# Простой Signaling сервер для WebRTC
-# Он должен пересылать сообщения от одного клиента всем остальным (или конкретному собеседнику)
-
+# Храним все активные подключения
 CONNECTIONS = set()
+
+
+async def broadcast(sender, message: str) -> None:
+    """Отправить сообщение всем клиентам, кроме отправителя."""
+    dead_connections = []
+
+    for conn in CONNECTIONS:
+        if conn is sender:
+            continue
+        try:
+            await conn.send(message)
+        except Exception:
+            dead_connections.append(conn)
+
+    for conn in dead_connections:
+        CONNECTIONS.discard(conn)
+
 
 async def handler(websocket):
     CONNECTIONS.add(websocket)
     try:
         async for message in websocket:
-            # Рассылаем сообщение всем остальным подключенным клиентам
-            for conn in CONNECTIONS:
-                if conn != websocket:
-                    await conn.send(message)
+            await broadcast(websocket, message)
     finally:
-        CONNECTIONS.remove(websocket)
+        CONNECTIONS.discard(websocket)
+
 
 async def main():
-    async with websockets.serve(handler, "localhost", 8765):
+    async with websockets.serve(handler, "0.0.0.0", 8765):
+        print("Signaling server started on ws://0.0.0.0:8765")
         await asyncio.Future()  # run forever
+
 
 if __name__ == "__main__":
     asyncio.run(main())

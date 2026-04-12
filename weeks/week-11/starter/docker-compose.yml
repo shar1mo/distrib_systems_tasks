@@ -1,28 +1,43 @@
-version: '3.8'
+version: '3.9'
 
 services:
-  # Ваш основной сервис
   app:
-    build: .
-    # ports:
-    #   - "8000:8000"
-    # environment:
-    #   - DB_HOST=db
-    # depends_on:
-    #   db:
-    #     condition: service_healthy
+    image: sessions-svc-s13
+    container_name: sessions-svc-s13
+    ports:
+      - "8227:8227"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8227/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - app-net
 
-  # База данных (пример)
-  # db:
-  #   image: postgres:15
-  #   environment:
-  #     POSTGRES_PASSWORD: secret
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U postgres"]
-  #     interval: 5s
-  #     timeout: 5s
-  #     retries: 5
+  db:
+    image: redis:7-alpine
+    container_name: sessions-db
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - app-net
+
+  gateway:
+    image: nginx:alpine
+    container_name: sessions-gateway
+    depends_on:
+      app:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    networks:
+      - app-net
 
 networks:
-  # app-network:
-  #   driver: bridge
+  app-net:
+    driver: bridge

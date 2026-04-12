@@ -1,2 +1,307 @@
 <!doctype html>
-<!-- В этом месте вам необходимо: реализуйте WebRTC клиент -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>profiles-s13 - WebRTC Chat</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 0 16px;
+    }
+
+    h1 {
+      margin-bottom: 8px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    button, input {
+      padding: 10px 12px;
+      font-size: 14px;
+    }
+
+    #messages {
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 12px;
+      height: 320px;
+      overflow-y: auto;
+      margin-bottom: 12px;
+      background: #fafafa;
+    }
+
+    .msg {
+      margin: 6px 0;
+    }
+
+    .system {
+      color: #666;
+      font-style: italic;
+    }
+
+    .me {
+      color: #0a58ca;
+    }
+
+    .peer {
+      color: #198754;
+    }
+
+    #messageInput {
+      width: 100%;
+      box-sizing: border-box;
+      margin-bottom: 8px;
+    }
+
+    .status {
+      margin-bottom: 12px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>profiles-s13 WebRTC Chat</h1>
+  <div class="status">Статус: <span id="status">не подключено</span></div>
+
+  <div class="controls">
+    <button id="connectBtn">Подключиться к signaling</button>
+    <button id="startBtn">Создать соединение</button>
+  </div>
+
+  <div id="messages"></div>
+
+  <input id="messageInput" type="text" placeholder="Введите сообщение..." />
+  <button id="sendBtn">Отправить</button>
+
+  <script>
+    const SIGNALING_URL = "ws://localhost:8765";
+
+    let ws = null;
+    let pc = null;
+    let dataChannel = null;
+    let makingOffer = false;
+    let ignoreOffer = false;
+    let polite = false;
+
+    const statusEl = document.getElementById("status");
+    const messagesEl = document.getElementById("messages");
+    const messageInput = document.getElementById("messageInput");
+    const connectBtn = document.getElementById("connectBtn");
+    const startBtn = document.getElementById("startBtn");
+    const sendBtn = document.getElementById("sendBtn");
+
+    function log(text, cls = "system") {
+      const div = document.createElement("div");
+      div.className = `msg ${cls}`;
+      div.textContent = text;
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function setStatus(text) {
+      statusEl.textContent = text;
+    }
+
+    function sendSignal(payload) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        log("Signaling WebSocket не подключен", "system");
+        return;
+      }
+      ws.send(JSON.stringify(payload));
+    }
+
+    function setupDataChannel(channel) {
+      dataChannel = channel;
+
+      dataChannel.onopen = () => {
+        setStatus("P2P соединение установлено");
+        log("DataChannel открыт");
+      };
+
+      dataChannel.onmessage = (event) => {
+        log(`Собеседник: ${event.data}`, "peer");
+      };
+
+      dataChannel.onclose = () => {
+        log("DataChannel закрыт");
+        setStatus("P2P соединение закрыто");
+      };
+
+      dataChannel.onerror = (error) => {
+        console.error("DataChannel error:", error);
+        log("Ошибка DataChannel");
+      };
+    }
+
+    async function createPeerConnection() {
+      if (pc) {
+        return;
+      }
+
+      pc = new RTCPeerConnection({
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" }
+        ]
+      });
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          sendSignal({
+            type: "candidate",
+            candidate: event.candidate
+          });
+        }
+      };
+
+      pc.onconnectionstatechange = () => {
+        setStatus(`RTCPeerConnection: ${pc.connectionState}`);
+        log(`Состояние соединения: ${pc.connectionState}`);
+      };
+
+      pc.ondatachannel = (event) => {
+        log("Получен входящий DataChannel");
+        setupDataChannel(event.channel);
+      };
+
+      pc.onnegotiationneeded = async () => {
+        try {
+          makingOffer = true;
+          await pc.setLocalDescription();
+          sendSignal({
+            type: "description",
+            description: pc.localDescription
+          });
+        } catch (err) {
+          console.error(err);
+          log(`Ошибка negotiation: ${err.message}`);
+        } finally {
+          makingOffer = false;
+        }
+      };
+    }
+
+    async function handleSignalMessage(event) {
+      const message = JSON.parse(event.data);
+
+      if (!pc) {
+        await createPeerConnection();
+      }
+
+      try {
+        if (message.type === "ready") {
+          polite = true;
+          log("В комнате уже есть клиент. Вы polite peer.");
+          return;
+        }
+
+        if (message.type === "description") {
+          const description = message.description;
+          const offerCollision =
+            description.type === "offer" &&
+            (makingOffer || pc.signalingState !== "stable");
+
+          ignoreOffer = !polite && offerCollision;
+          if (ignoreOffer) {
+            return;
+          }
+
+          await pc.setRemoteDescription(description);
+
+          if (description.type === "offer") {
+            await pc.setLocalDescription();
+            sendSignal({
+              type: "description",
+              description: pc.localDescription
+            });
+          }
+        } else if (message.type === "candidate") {
+          try {
+            await pc.addIceCandidate(message.candidate);
+          } catch (err) {
+            if (!ignoreOffer) {
+              throw err;
+            }
+          }
+        }
+      } catch (err) {
+        console.error(err);
+        log(`Ошибка обработки signaling: ${err.message}`);
+      }
+    }
+
+    connectBtn.onclick = async () => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        log("Signaling уже подключен");
+        return;
+      }
+
+      ws = new WebSocket(SIGNALING_URL);
+
+      ws.onopen = async () => {
+        setStatus("signaling подключен");
+        log("Подключено к signaling серверу");
+        await createPeerConnection();
+
+        sendSignal({ type: "join" });
+      };
+
+      ws.onmessage = handleSignalMessage;
+
+      ws.onclose = () => {
+        setStatus("signaling отключен");
+        log("Signaling соединение закрыто");
+      };
+
+      ws.onerror = (error) => {
+        console.error("WebSocket error:", error);
+        log("Ошибка WebSocket");
+      };
+    };
+
+    startBtn.onclick = async () => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        log("Сначала подключитесь к signaling серверу");
+        return;
+      }
+
+      await createPeerConnection();
+
+      if (!dataChannel) {
+        const channel = pc.createDataChannel("chat");
+        setupDataChannel(channel);
+        log("Создан DataChannel, запускаем соединение");
+      }
+    };
+
+    sendBtn.onclick = () => {
+      const text = messageInput.value.trim();
+      if (!text) {
+        return;
+      }
+
+      if (!dataChannel || dataChannel.readyState !== "open") {
+        log("DataChannel ещё не открыт");
+        return;
+      }
+
+      dataChannel.send(text);
+      log(`Вы: ${text}`, "me");
+      messageInput.value = "";
+    };
+
+    messageInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        sendBtn.click();
+      }
+    });
+  </script>
+</body>
+</html>

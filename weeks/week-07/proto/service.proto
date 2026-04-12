@@ -1,16 +1,22 @@
 syntax = "proto3";
 
-// Опишите ваш пакет и сервис здесь
-// package example;
+package products.v1;
 
-// service MyService {
-//   rpc MyMethod (MyRequest) returns (MyResponse);
-// }
+// Сообщение запроса для создания продукта
+message CreateProductRequest {
+  string name = 1;
+  float price = 2;
+}
 
-// message MyRequest {
-//   string id = 1;
-// }
+// Сообщение ответа
+message CreateProductResponse {
+  string id = 1; // Уникальный идентификатор продукта
+  string name = 2;
+  float price = 3;
+}
 
-// message MyResponse {
-//   string result = 1;
-// }
+// gRPC сервис
+service ProductsService {
+  // Unary RPC: один запрос, один ответ
+  rpc CreateProduct(CreateProductRequest) returns (CreateProductResponse);
+}

@@ -1,22 +1,43 @@
 version: '3.9'
+
 services:
   app:
-    # Замените на имя образа
-    image: primer/obraz
+    image: sessions-svc-s13
+    container_name: sessions-svc-s13
+    ports:
+      - "8227:8227"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8227/health"]
       interval: 10s
       timeout: 3s
       retries: 3
     networks:
       - app-net
-  gateway:
-    # Замените на имя образа
-    image: primer/obraz
-    depends_on:
-      - app
+
+  db:
+    image: redis:7-alpine
+    container_name: sessions-db
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
     networks:
       - app-net
+
+  gateway:
+    image: nginx:alpine
+    container_name: sessions-gateway
+    depends_on:
+      app:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    networks:
+      - app-net
+
 networks:
   app-net:
     driver: bridge

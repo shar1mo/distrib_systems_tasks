@@ -1,1 +1,42 @@
-# В этом месте вам необходимо: Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sessions-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: sessions-app
+  template:
+    metadata:
+      labels:
+        app: sessions-app
+    spec:
+      containers:
+        - name: sessions-container
+          image: sessions-svc-s13:latest
+          ports:
+            - containerPort: 8267
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "250m"
+            limits:
+              memory: "128Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8267
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8267
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
