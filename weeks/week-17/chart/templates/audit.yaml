@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.audit.app }}
+  labels:
+    app: {{ .Values.audit.app }}
+    project: {{ .Values.projectCode }}
+spec:
+  replicas: {{ .Values.audit.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.audit.app }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.audit.app }}
+        project: {{ .Values.projectCode }}
+    spec:
+      containers:
+        - name: {{ .Values.audit.container }}
+          image: "{{ .Values.audit.image.repository }}:{{ .Values.audit.image.tag }}"
+          ports:
+            - containerPort: {{ .Values.audit.service.port }}
+          env:
+            - name: SERVICE_NAME
+              value: {{ .Values.audit.serviceName | quote }}
+            - name: DATABASE_PATH
+              value: /data/audit.db
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.projectCode }}-config
+          volumeMounts:
+            - name: audit-data
+              mountPath: /data
+          resources:
+{{ toYaml .Values.audit.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.audit.service.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.audit.service.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: audit-data
+          persistentVolumeClaim:
+            claimName: audit-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.audit.serviceName }}
+  labels:
+    app: {{ .Values.audit.app }}
+    project: {{ .Values.projectCode }}
+spec:
+  type: ClusterIP
+  selector:
+    app: {{ .Values.audit.app }}
+  ports:
+    - name: http
+      port: {{ .Values.audit.service.port }}
+      targetPort: {{ .Values.audit.service.port }}

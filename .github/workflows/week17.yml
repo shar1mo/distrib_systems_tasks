@@ -1,0 +1,65 @@
+name: week17-capstone
+
+on:
+  push:
+    paths:
+      - "weeks/week-17/**"
+      - ".github/workflows/week17.yml"
+  pull_request:
+    paths:
+      - "weeks/week-17/**"
+      - ".github/workflows/week17.yml"
+
+jobs:
+  test-build-artifacts:
+    runs-on: ubuntu-latest
+    env:
+      GROUP: "332"
+      STUDENT_ID: "s13"
+      WEEK: "17"
+      PROJECT_CODE: "shipments-s13"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: |
+            requirements.txt
+            weeks/week-17/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r weeks/week-17/requirements.txt
+
+      - name: Lint by compilation
+        run: python -m compileall weeks/week-17
+
+      - name: Run capstone tests
+        run: make test WEEK=${{ env.WEEK }}
+
+      - name: Build gateway image
+        run: docker build -t shipments-s13-gateway:${{ github.sha }} -f weeks/week-17/services/gateway/Dockerfile weeks/week-17
+
+      - name: Build shipments image
+        run: docker build -t shipments-s13:${{ github.sha }} -f weeks/week-17/services/shipments_service/Dockerfile weeks/week-17
+
+      - name: Build audit image
+        run: docker build -t shipments-s13-audit:${{ github.sha }} -f weeks/week-17/services/audit_service/Dockerfile weeks/week-17
+
+      - name: Prepare release artifacts
+        run: |
+          mkdir -p artifacts
+          cp weeks/week-17/ARCHITECTURE.md artifacts/
+          cp weeks/week-17/docker-compose.yml artifacts/
+          cp -r weeks/week-17/k8s artifacts/
+          cp -r weeks/week-17/chart artifacts/
+
+      - name: Publish artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: shipments-s13-capstone
+          path: artifacts

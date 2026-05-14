@@ -1,35 +1,108 @@
-# Финальный проект
+# Финальный проект: shipments-s13
 
-## Задача
-Поздравляем! Вы дошли до финала. Теперь у вас есть набор знаний, который необходимо объединить в общую картину: REST, gRPC, Docker, K8s, CI/CD.
-Пришло время собрать всё это вместе в один финальный проект.
+Мини-система из трех сервисов для управления отправлениями. Вариант: группа `332`, студент `s13`, ресурс `shipments`, дополнительное поле `tracking`.
 
-## Ваш вариант
-`variants/<GROUP>/<STUDENT_ID>/week-17.json`
-Там описана тема вашего проекта (например, "Сервис доставки еды" или "Трекер задач").
+## Быстрый запуск
 
-## Что нужно сделать
-1. **Архитектура**:
-   - Спроектируйте систему из 2-3 микросервисов.
-   - Опишите её в `ARCHITECTURE.md` (кто с кем общается, какие базы данных, какие протоколы).
-2. **Реализация**:
-   - Напишите код сервисов (можно переиспользовать код с прошлых недель).
-   - Выберите протокол осознанно: где-то REST для фронтенда, где-то gRPC для межсервисного общения.
-3. **Инфраструктура**:
-   - Упакуйте всё в Docker.
-   - Напишите docker-compose для локального запуска.
-   - (Опционально) Helm чарт для Кубернетиса.
-   - Настройте (или опишите) CI пайплайн.
-4. **Сдача**:
-   - Проект должен запускаться одной командой и иметь документацию.
-
-## Что сдавать
-1. Полный код проекта.
-2. `ARCHITECTURE.md`.
-3. Инструкция по запуску.
-
-## Как проверить
 ```bash
-make test WEEK=17
+cd weeks/week-17
+docker compose up --build
 ```
-Тест проверит наличие основных файлов и документации.
+
+После запуска gateway доступен на `http://localhost:8080`.
+
+## Проверка REST
+
+```bash
+curl http://localhost:8080/health
+
+curl -X POST http://localhost:8080/api/shipments \
+  -H "Content-Type: application/json" \
+  -d '{"destination":"Novosibirsk","tracking":"S13-TRACK-001"}'
+
+curl http://localhost:8080/api/shipments
+```
+
+Обновление статуса:
+
+```bash
+curl -X PATCH http://localhost:8080/api/shipments/1/status \
+  -H "Content-Type: application/json" \
+  -d '{"status":"in_transit"}'
+```
+
+## Проверка GraphQL
+
+Endpoint: `http://localhost:8080/graphql`.
+
+```graphql
+mutation {
+  createShipment(destination: "Tomsk", tracking: "S13-TRACK-002") {
+    id
+    destination
+    tracking
+    status
+  }
+}
+```
+
+```graphql
+query {
+  shipments {
+    id
+    destination
+    tracking
+    status
+    createdAt
+  }
+}
+```
+
+## Структура
+
+- `services/gateway` - внешний REST и GraphQL gateway.
+- `services/shipments_service` - основной сервис `shipments-svc-s13`, REST health/admin и gRPC `ShipmentsService`.
+- `services/audit_service` - журнал событий отправлений.
+- `proto/shipments/v1/shipments.proto` - gRPC-контракт.
+- `generated/` - сгенерированные Python stubs для gRPC.
+- `k8s/` - Kubernetes-манифесты.
+- `chart/` - Helm chart.
+
+## Локальная разработка без Docker
+
+```bash
+cd weeks/week-17
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+make proto
+```
+
+Запуск сервисов вручную требует трех терминалов и переменных `PYTHONPATH`:
+
+```bash
+PYTHONPATH=services/audit_service DATABASE_PATH=/tmp/audit.db uvicorn app.main:app --host 0.0.0.0 --port 8132
+PYTHONPATH=services/shipments_service:generated DATABASE_PATH=/tmp/shipments.db AUDIT_URL=http://localhost:8132 uvicorn app.main:app --host 0.0.0.0 --port 8130
+PYTHONPATH=services/gateway:generated SHIPMENTS_GRPC_TARGET=localhost:8131 uvicorn app.main:app --host 0.0.0.0 --port 8080
+```
+
+## Kubernetes и Helm
+
+```bash
+kubectl apply -f k8s/
+kubectl port-forward svc/gateway-service 8080:8080
+```
+
+Helm:
+
+```bash
+helm upgrade --install shipments-s13 ./chart -f chart/values-dev.yaml
+```
+
+## Тест курса
+
+Из корня репозитория:
+
+```bash
+GROUP=332 STUDENT_ID=s13 make test WEEK=17
+```

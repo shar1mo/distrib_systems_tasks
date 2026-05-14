@@ -1,0 +1,76 @@
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: services/gateway/Dockerfile
+    container_name: shipments-gateway-s13
+    environment:
+      PROJECT_CODE: shipments-s13
+      GATEWAY_PREFIX: /api
+      SHIPMENTS_GRPC_TARGET: shipments-svc-s13:8131
+    depends_on:
+      shipments-svc-s13:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health').read()"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - shipments-net
+
+  shipments-svc-s13:
+    build:
+      context: .
+      dockerfile: services/shipments_service/Dockerfile
+    container_name: shipments-svc-s13
+    environment:
+      PROJECT_CODE: shipments-s13
+      SERVICE_NAME: shipments-svc-s13
+      APP_PORT: "8130"
+      GRPC_PORT: "8131"
+      DATABASE_PATH: /data/shipments.db
+      AUDIT_URL: http://audit-service:8132
+    ports:
+      - "8130:8130"
+      - "8131:8131"
+    volumes:
+      - shipments-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8130/health').read()"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - shipments-net
+
+  audit-service:
+    build:
+      context: .
+      dockerfile: services/audit_service/Dockerfile
+    container_name: shipments-audit-s13
+    environment:
+      PROJECT_CODE: shipments-s13
+      SERVICE_NAME: audit-service
+      DATABASE_PATH: /data/audit.db
+    ports:
+      - "8132:8132"
+    volumes:
+      - audit-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8132/health').read()"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - shipments-net
+
+volumes:
+  shipments-data:
+  audit-data:
+
+networks:
+  shipments-net:
+    driver: bridge

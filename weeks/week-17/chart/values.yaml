@@ -1,0 +1,60 @@
+projectCode: shipments-s13
+
+gateway:
+  app: gateway-app
+  container: gateway-container
+  replicas: 2
+  image:
+    repository: shipments-s13-gateway
+    tag: latest
+  service:
+    name: gateway-service
+    port: 8080
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+shipments:
+  app: shipments-app
+  container: shipments-container
+  serviceName: shipments-svc-s13
+  replicas: 1
+  image:
+    repository: shipments-s13
+    tag: latest
+  service:
+    httpPort: 8130
+    grpcPort: 8131
+  persistence:
+    size: 1Gi
+  resources:
+    requests:
+      cpu: 150m
+      memory: 128Mi
+    limits:
+      cpu: 750m
+      memory: 384Mi
+
+audit:
+  app: audit-app
+  container: audit-container
+  serviceName: audit-service
+  replicas: 1
+  image:
+    repository: shipments-s13-audit
+    tag: latest
+  service:
+    port: 8132
+  persistence:
+    size: 1Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi

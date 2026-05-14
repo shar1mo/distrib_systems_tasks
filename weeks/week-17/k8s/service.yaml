@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-service
+  labels:
+    app: gateway-app
+    project: shipments-s13
+spec:
+  type: ClusterIP
+  selector:
+    app: gateway-app
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shipments-svc-s13
+  labels:
+    app: shipments-app
+    project: shipments-s13
+spec:
+  type: ClusterIP
+  selector:
+    app: shipments-app
+  ports:
+    - name: http
+      port: 8130
+      targetPort: 8130
+    - name: grpc
+      port: 8131
+      targetPort: 8131
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: audit-service
+  labels:
+    app: audit-app
+    project: shipments-s13
+spec:
+  type: ClusterIP
+  selector:
+    app: audit-app
+  ports:
+    - name: http
+      port: 8132
+      targetPort: 8132

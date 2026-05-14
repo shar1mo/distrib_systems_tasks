@@ -1,0 +1,9 @@
+apiVersion: v2
+name: shipments-app
+description: Helm chart for the shipments-s13 capstone project
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+annotations:
+  project_code: shipments-s13
+  grpc_service: ShipmentsService

@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.projectCode }}-config
+data:
+  PROJECT_CODE: {{ .Values.projectCode | quote }}
+  GATEWAY_PREFIX: "/api"
+  SHIPMENTS_GRPC_TARGET: "{{ .Values.shipments.serviceName }}:{{ .Values.shipments.service.grpcPort }}"
+  AUDIT_URL: "http://{{ .Values.audit.serviceName }}:{{ .Values.audit.service.port }}"

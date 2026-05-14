@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.shipments.app }}
+  labels:
+    app: {{ .Values.shipments.app }}
+    project: {{ .Values.projectCode }}
+spec:
+  replicas: {{ .Values.shipments.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.shipments.app }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.shipments.app }}
+        project: {{ .Values.projectCode }}
+    spec:
+      containers:
+        - name: {{ .Values.shipments.container }}
+          image: "{{ .Values.shipments.image.repository }}:{{ .Values.shipments.image.tag }}"
+          ports:
+            - containerPort: {{ .Values.shipments.service.httpPort }}
+              name: http
+            - containerPort: {{ .Values.shipments.service.grpcPort }}
+              name: grpc
+          env:
+            - name: SERVICE_NAME
+              value: {{ .Values.shipments.serviceName | quote }}
+            - name: APP_PORT
+              value: {{ .Values.shipments.service.httpPort | quote }}
+            - name: GRPC_PORT
+              value: {{ .Values.shipments.service.grpcPort | quote }}
+            - name: DATABASE_PATH
+              value: /data/shipments.db
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.projectCode }}-config
+          volumeMounts:
+            - name: shipments-data
+              mountPath: /data
+          resources:
+{{ toYaml .Values.shipments.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.shipments.service.httpPort }}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.shipments.service.httpPort }}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: shipments-data
+          persistentVolumeClaim:
+            claimName: shipments-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.shipments.serviceName }}
+  labels:
+    app: {{ .Values.shipments.app }}
+    project: {{ .Values.projectCode }}
+spec:
+  type: ClusterIP
+  selector:
+    app: {{ .Values.shipments.app }}
+  ports:
+    - name: http
+      port: {{ .Values.shipments.service.httpPort }}
+      targetPort: {{ .Values.shipments.service.httpPort }}
+    - name: grpc
+      port: {{ .Values.shipments.service.grpcPort }}
+      targetPort: {{ .Values.shipments.service.grpcPort }}

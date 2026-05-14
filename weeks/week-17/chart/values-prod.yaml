@@ -1,0 +1,39 @@
+gateway:
+  replicas: 3
+  image:
+    tag: prod
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+
+shipments:
+  replicas: 1
+  image:
+    tag: prod
+  persistence:
+    size: 5Gi
+  resources:
+    requests:
+      cpu: 300m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+
+audit:
+  replicas: 1
+  image:
+    tag: prod
+  persistence:
+    size: 5Gi
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 750m
+      memory: 512Mi
